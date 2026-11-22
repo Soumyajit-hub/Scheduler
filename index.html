@@ -1,0 +1,1829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scheduler — Intelligent Self-Making Timetable</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar for smooth timetable experience */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.7);
+    }
+
+    /* Drag and drop visual cues */
+    .drop-target-active {
+      background-color: rgba(99, 102, 241, 0.18) !important;
+      outline: 2px dashed #6366f1;
+      outline-offset: -2px;
+    }
+    .drop-target-invalid {
+      background-color: rgba(239, 68, 68, 0.18) !important;
+      outline: 2px dashed #ef4444;
+      outline-offset: -2px;
+    }
+    .event-card-dragging {
+      opacity: 0.45;
+      transform: scale(0.98);
+    }
+    /* Smooth transitions */
+    .event-block {
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    }
+    .event-block:hover {
+      transform: translateY(-1px);
+      z-index: 25 !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
+
+  <!-- Top Navigation & Branding Header -->
+  <header class="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 shadow-sm">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand Logo & Title -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400">
+              Scheduler
+            </h1>
+            <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+              Auto-Timetable
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Smart priority-based schedule generator & visual editor</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Toolbar -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="btnLoadSample" type="button" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+          </svg>
+          <span>Sample Data</span>
+        </button>
+
+        <button id="btnClearGrid" type="button" class="px-3 py-2 rounded-xl text-xs sm:text-sm font-medium bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/60 transition flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          <span>Clear Grid</span>
+        </button>
+
+        <button id="btnAutoGenerate" type="button" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/25 transition flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>Auto-Generate</span>
+        </button>
+
+        <button id="btnExportImage" type="button" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Export PNG</span>
+        </button>
+
+        <!-- Dark/Light Theme Toggle -->
+        <button id="btnThemeToggle" type="button" aria-label="Toggle Theme" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition">
+          <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toast / Notification Banner Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- Main Workspace Container -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+    <!-- LEFT SIDEBAR: Explicit Step-by-Step Guided Flow (Step 1: Grid Setup -> Step 2: Events) -->
+    <aside class="lg:col-span-4 xl:col-span-4 flex flex-col gap-5">
+
+      <!-- STEPPER NAVIGATION TABS -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-1.5 shadow-sm grid grid-cols-2 gap-1.5">
+        <button id="tabStep1" type="button" class="py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 bg-indigo-600 text-white shadow-sm transition">
+          <span class="w-5 h-5 rounded-full bg-white/20 text-white text-xs flex items-center justify-center">1</span>
+          <span>1. Grid Setup</span>
+        </button>
+        <button id="tabStep2" type="button" class="py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <span class="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs flex items-center justify-center">2</span>
+          <span>2. Events (<span id="tabEventCountBadge">4</span>)</span>
+        </button>
+      </div>
+
+      <!-- STEP 1: Grid Configuration Card (Starts First & Active!) -->
+      <section id="step1Card" class="bg-white dark:bg-slate-900 rounded-2xl border-2 border-indigo-500/70 dark:border-indigo-500/50 shadow-md p-5 transition-all">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2.5">
+            <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white font-bold text-sm flex items-center justify-center shadow-xs">1</span>
+            <div>
+              <h2 class="font-bold text-base text-slate-900 dark:text-white leading-tight">Grid Dimensions (Columns &amp; Rows)</h2>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">Set grid columns (days) &amp; rows (time slots)</p>
+            </div>
+          </div>
+          <span id="gridMatrixBadge" class="text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">7 Cols × 12 Rows</span>
+        </div>
+
+        <div class="flex flex-col gap-4">
+          <!-- Explicit Grid Matrix Inputs: Columns (Days) & Rows (Time Slots) -->
+          <div class="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 flex flex-col gap-3">
+            <div class="grid grid-cols-2 gap-3">
+              <!-- Columns Input -->
+              <div>
+                <label for="inputNumDays" class="block text-xs font-bold text-indigo-950 dark:text-indigo-200 mb-1">
+                  Columns (Days)
+                </label>
+                <input type="number" id="inputNumDays" min="1" max="14" value="7" class="w-full px-3 py-2 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-sm font-extrabold text-center text-indigo-700 dark:text-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none transition" />
+                <span class="block text-[10px] text-slate-500 dark:text-slate-400 mt-1 text-center">Default: 7 (1 Week)</span>
+              </div>
+
+              <!-- Rows Input -->
+              <div>
+                <label for="inputNumRows" class="block text-xs font-bold text-indigo-950 dark:text-indigo-200 mb-1">
+                  Rows (Time Slots)
+                </label>
+                <input type="number" id="inputNumRows" min="2" max="48" value="12" class="w-full px-3 py-2 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-sm font-extrabold text-center text-indigo-700 dark:text-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none transition" />
+                <span class="block text-[10px] text-slate-500 dark:text-slate-400 mt-1 text-center">Slots per day</span>
+              </div>
+            </div>
+
+            <!-- Quick Column (Duration) Presets -->
+            <div>
+              <span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Quick Duration / Columns Presets:</span>
+              <div class="grid grid-cols-4 gap-1.5">
+                <button type="button" data-days="5" class="preset-days py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition">5 Cols</button>
+                <button type="button" data-days="7" class="preset-days py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow-xs transition">7 Cols</button>
+                <button type="button" data-days="10" class="preset-days py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition">10 Cols</button>
+                <button type="button" data-days="14" class="preset-days py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition">14 Cols</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Start Date & Daily Start Time -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="inputStartDate" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Start Date (Col 1)</label>
+              <input type="date" id="inputStartDate" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition" />
+            </div>
+
+            <div>
+              <label for="inputStartTime" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Start Time (Row 1)</label>
+              <input type="time" id="inputStartTime" value="08:00" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition" />
+            </div>
+          </div>
+
+          <!-- Slot Interval (Row Step Size) & Calculated End Time -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Row Interval (Time per Row)</label>
+              <span id="calculatedEndTimeLabel" class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">Ends at 8:00 PM</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" data-interval="30" class="interval-btn py-2 px-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition">
+                30 Mins / Row
+              </button>
+              <button type="button" data-interval="60" class="interval-btn py-2 px-3 rounded-xl text-xs font-semibold border border-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 transition">
+                60 Mins / Row
+              </button>
+            </div>
+          </div>
+
+          <!-- Apply Grid & Proceed CTA -->
+          <button id="btnApplyGridAndNext" type="button" class="w-full mt-1 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-sm font-bold shadow-md shadow-indigo-500/25 transition flex items-center justify-center gap-2">
+            <span>Build Grid &amp; Continue to Events</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 2: Event Definitions Card (Shown after Step 1 or via Step 2 tab) -->
+      <section id="step2Card" class="hidden bg-white dark:bg-slate-900 rounded-2xl border-2 border-indigo-500/70 dark:border-indigo-500/50 shadow-md p-5 flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <button id="btnBackToStep1" type="button" title="Back to Grid Setup" class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div>
+              <h2 class="font-bold text-base text-slate-900 dark:text-white leading-tight">Events &amp; Priorities</h2>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">Set event count, days, priority &amp; duration</p>
+            </div>
+          </div>
+
+          <!-- Quick Event Count Setter -->
+          <div class="flex items-center gap-1.5">
+            <label for="inputEventCount" class="text-xs text-slate-500 dark:text-slate-400 font-semibold">Events (n):</label>
+            <input type="number" id="inputEventCount" min="1" max="30" value="4" class="w-14 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button id="btnSetEventCount" type="button" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 transition">
+              Set
+            </button>
+          </div>
+        </div>
+
+        <!-- Event Input Cards List -->
+        <div id="eventListContainer" class="flex flex-col gap-3.5 max-h-[540px] overflow-y-auto pr-1">
+          <!-- Event cards dynamically injected here -->
+        </div>
+
+        <!-- Add Event & Generate Action Footer -->
+        <div class="flex flex-col sm:flex-row gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <button id="btnAddEvent" type="button" class="flex-1 py-2.5 px-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>+ Add Event</span>
+          </button>
+
+          <button id="btnGenerateMain" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/25 transition flex items-center justify-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>Generate Timetable</span>
+          </button>
+        </div>
+      </section>
+    </aside>
+
+    <!-- RIGHT WORKSPACE: Interactive Timetable Grid (Exportable Area) -->
+    <section class="lg:col-span-8 xl:col-span-8 flex flex-col gap-4">
+
+      <!-- Helper Tips Bar -->
+      <div class="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-900 dark:text-indigo-200">
+        <div class="flex items-center gap-2">
+          <span class="p-1 rounded-lg bg-indigo-600 text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </span>
+          <span><strong>Interactive Grid:</strong> Drag &amp; drop blocks to reschedule, click any block to edit/recolor, or click an empty slot to add an event directly.</span>
+        </div>
+        <span id="placedStatsBadge" class="font-semibold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-xs">
+          0 Events Placed
+        </span>
+      </div>
+
+      <!-- EXPORT WRAPPER: Everything inside #exportArea is captured into PNG -->
+      <div id="exportArea" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+
+        <!-- Timetable Header & Priority Legend -->
+        <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/70 dark:bg-slate-900">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Scheduler Timetable</h2>
+              <span id="gridDateRangeLabel" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                Nov 23 – Nov 29, 2026
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Color-coded by task priority level</p>
+          </div>
+
+          <!-- 5-Level Priority Legend -->
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-medium">
+            <div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60">
+              <span class="w-3 h-3 rounded-full bg-[#EF4444] shrink-0"></span>
+              <span class="text-red-900 dark:text-red-200">Extremely High</span>
+            </div>
+            <div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-orange-50 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-900/60">
+              <span class="w-3 h-3 rounded-full bg-[#F97316] shrink-0"></span>
+              <span class="text-orange-900 dark:text-orange-200">High</span>
+            </div>
+            <div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-yellow-50 dark:bg-yellow-950/50 border border-yellow-300 dark:border-yellow-900/60">
+              <span class="w-3 h-3 rounded-full bg-[#EAB308] shrink-0"></span>
+              <span class="text-yellow-900 dark:text-yellow-200">Medium</span>
+            </div>
+            <div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-900/60">
+              <span class="w-3 h-3 rounded-full bg-[#38BDF8] shrink-0"></span>
+              <span class="text-sky-900 dark:text-sky-200">Low</span>
+            </div>
+            <div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-900/60">
+              <span class="w-3 h-3 rounded-full bg-[#22C55E] shrink-0"></span>
+              <span class="text-green-900 dark:text-green-200">Extremely Low</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrollable Timetable Grid Canvas -->
+        <div id="timetableScrollWrapper" class="overflow-x-auto relative">
+          <div id="timetableGridContainer" class="min-w-[720px] select-none">
+            <!-- Dynamically rendered timetable grid goes here -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: Edit / Create Placed Event Block -->
+  <div id="editModalBackdrop" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-5 sm:p-6 transform transition-all">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <h3 id="modalTitle" class="text-lg font-bold text-slate-900 dark:text-white">Edit Scheduled Event</h3>
+        <button id="btnCloseModal" type="button" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="editEventForm" class="mt-4 flex flex-col gap-4">
+        <input type="hidden" id="modalBlockId" />
+
+        <!-- Event Name -->
+        <div>
+          <label for="modalEventName" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Event Name</label>
+          <input type="text" id="modalEventName" required placeholder="e.g., Deep Work Session" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+        </div>
+
+        <!-- Day & Start Time -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="modalDaySelect" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Day</label>
+            <select id="modalDaySelect" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+          </div>
+          <div>
+            <label for="modalStartTime" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Start Time</label>
+            <select id="modalStartTime" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+          </div>
+        </div>
+
+        <!-- Duration & Priority -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="modalDuration" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Duration (mins)</label>
+            <input type="number" id="modalDuration" min="5" max="720" step="5" value="60" required placeholder="e.g., 45 or 90" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+
+          <div>
+            <label for="modalPriority" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Priority Level</label>
+            <select id="modalPriority" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+              <option value="1">1 - Extremely High (Red)</option>
+              <option value="2">2 - High (Orange)</option>
+              <option value="3">3 - Medium (Yellow)</option>
+              <option value="4">4 - Low (Light Blue)</option>
+              <option value="5">5 - Extremely Low (Green)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Modal Action Buttons -->
+        <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 mt-1">
+          <button type="button" id="btnModalDelete" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/60 transition">
+            Remove Block
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btnModalCancel" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+              Cancel
+            </button>
+            <button type="submit" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition">
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Application Logic -->
+  <script>
+    /**
+     * SCHEDULER APPLICATION
+     * Self-making timetable generator with priority sorting, conflict resolution,
+     * drag-and-drop grid editing, and PNG export.
+     */
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 1. CONSTANTS & PRIORITY CONFIGURATION
+      // =========================================================================
+      const PRIORITY_LEVELS = {
+        1: {
+          id: 1,
+          label: 'Extremely High',
+          short: 'Ext. High',
+          bgHex: '#EF4444',      // Red
+          borderHex: '#DC2626',
+          textClass: 'text-white',
+          subTextClass: 'text-red-100',
+          badgeBg: 'bg-red-700/40 text-white',
+          dotClass: 'bg-[#EF4444]'
+        },
+        2: {
+          id: 2,
+          label: 'High',
+          short: 'High',
+          bgHex: '#F97316',      // Orange
+          borderHex: '#EA580C',
+          textClass: 'text-white',
+          subTextClass: 'text-orange-100',
+          badgeBg: 'bg-orange-700/40 text-white',
+          dotClass: 'bg-[#F97316]'
+        },
+        3: {
+          id: 3,
+          label: 'Medium',
+          short: 'Medium',
+          bgHex: '#EAB308',      // Yellow
+          borderHex: '#CA8A04',
+          textClass: 'text-slate-950', // High contrast dark text on yellow
+          subTextClass: 'text-slate-800',
+          badgeBg: 'bg-yellow-900/15 text-slate-950',
+          dotClass: 'bg-[#EAB308]'
+        },
+        4: {
+          id: 4,
+          label: 'Low',
+          short: 'Low',
+          bgHex: '#38BDF8',      // Light Blue
+          borderHex: '#0284C7',
+          textClass: 'text-slate-950', // High contrast dark text on light blue
+          subTextClass: 'text-slate-800',
+          badgeBg: 'bg-sky-950/15 text-slate-950',
+          dotClass: 'bg-[#38BDF8]'
+        },
+        5: {
+          id: 5,
+          label: 'Extremely Low',
+          short: 'Ext. Low',
+          bgHex: '#22C55E',      // Green
+          borderHex: '#16A34A',
+          textClass: 'text-white',
+          subTextClass: 'text-green-100',
+          badgeBg: 'bg-green-800/35 text-white',
+          dotClass: 'bg-[#22C55E]'
+        }
+      };
+
+      const SLOT_HEIGHT_PX = 48; // Height of each slot row in pixels
+
+      // =========================================================================
+      // 1B. HELPER UTILITIES (Dates, Time Conversions, UID, Toasts)
+      // =========================================================================
+      function getMondayOfCurrentWeek() {
+        const now = new Date();
+        const day = now.getDay(); // 0 = Sun, 1 = Mon, ...
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(now.getFullYear(), now.getMonth(), diff);
+        const yyyy = monday.getFullYear();
+        const mm = String(monday.getMonth() + 1).padStart(2, '0');
+        const dd = String(monday.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      function timeStrToMinutes(timeStr) {
+        if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(':')) return null;
+        const [hStr, mStr] = timeStr.split(':');
+        const h = parseInt(hStr, 10);
+        const m = parseInt(mStr, 10);
+        if (isNaN(h) || isNaN(m)) return null;
+        return h * 60 + m;
+      }
+
+      function minutesToDisplay12h(totalMinutes) {
+        const hrs24 = Math.floor(totalMinutes / 60) % 24;
+        const mins = totalMinutes % 60;
+        const suffix = hrs24 >= 12 ? 'PM' : 'AM';
+        const hrs12 = hrs24 % 12 === 0 ? 12 : hrs24 % 12;
+        return `${hrs12}:${String(mins).padStart(2, '0')} ${suffix}`;
+      }
+
+      function getGridDays() {
+        const parts = (state.startDate || getMondayOfCurrentWeek()).split('-').map(Number);
+        const baseDate = new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1);
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const days = [];
+
+        for (let i = 0; i < state.numDays; i++) {
+          const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + i);
+          const dayName = dayNames[d.getDay()];
+          const monthName = monthNames[d.getMonth()];
+          const dayNum = d.getDate();
+          days.push({
+            index: i,
+            dateObj: d,
+            dayName,
+            monthName,
+            dayNum,
+            fullLabel: `${dayName}, ${monthName} ${dayNum}`
+          });
+        }
+        return days;
+      }
+
+      function generateUID(prefix = 'id') {
+        return `${prefix}_${Math.random().toString(36).slice(2, 9)}_${Date.now().toString(36)}`;
+      }
+
+      function escapeHTML(str) {
+        return String(str ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function showToast(message, type = 'info') {
+        if (!dom.toastContainer) return;
+        const palette = {
+          success: 'bg-emerald-600 text-white border-emerald-500',
+          warning: 'bg-amber-500 text-slate-950 border-amber-400',
+          error: 'bg-rose-600 text-white border-rose-500',
+          info: 'bg-slate-900 dark:bg-slate-800 text-white border-slate-700'
+        };
+        const toast = document.createElement('div');
+        toast.className = `pointer-events-auto px-4 py-3 rounded-xl border shadow-lg text-xs sm:text-sm font-semibold transition-all duration-200 transform translate-y-2 opacity-0 ${palette[type] || palette.info}`;
+        toast.textContent = message;
+        dom.toastContainer.appendChild(toast);
+
+        requestAnimationFrame(() => {
+          toast.classList.remove('translate-y-2', 'opacity-0');
+        });
+
+        setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-2');
+          setTimeout(() => toast.remove(), 220);
+        }, 3400);
+      }
+
+      // =========================================================================
+      // 2. APPLICATION STATE
+      // =========================================================================
+      const state = {
+        currentStep: 1, // 1 = Grid Setup, 2 = Event Details
+        startDate: getMondayOfCurrentWeek(), // YYYY-MM-DD
+        numDays: 7,         // Columns
+        numRows: 12,        // Rows
+        startTime: '08:00', // HH:MM (Row 1 start)
+        endTime: '20:00',   // HH:MM (Derived from startTime + numRows * slotInterval)
+        slotInterval: 60,   // minutes per row (30 or 60)
+        // Event templates entered by user in Step 2
+        eventTemplates: [],
+        // Placed blocks rendered on the timetable grid
+        placedBlocks: [],
+        // Drag-and-drop tracking
+        draggedBlockId: null
+      };
+
+      // =========================================================================
+      // 3. DOM ELEMENT REFERENCES
+      // =========================================================================
+      const dom = {
+        tabStep1: document.getElementById('tabStep1'),
+        tabStep2: document.getElementById('tabStep2'),
+        tabEventCountBadge: document.getElementById('tabEventCountBadge'),
+        step1Card: document.getElementById('step1Card'),
+        step2Card: document.getElementById('step2Card'),
+        gridMatrixBadge: document.getElementById('gridMatrixBadge'),
+        calculatedEndTimeLabel: document.getElementById('calculatedEndTimeLabel'),
+        btnApplyGridAndNext: document.getElementById('btnApplyGridAndNext'),
+        btnBackToStep1: document.getElementById('btnBackToStep1'),
+        inputStartDate: document.getElementById('inputStartDate'),
+        inputNumDays: document.getElementById('inputNumDays'),
+        inputNumRows: document.getElementById('inputNumRows'),
+        inputStartTime: document.getElementById('inputStartTime'),
+        inputEventCount: document.getElementById('inputEventCount'),
+        btnSetEventCount: document.getElementById('btnSetEventCount'),
+        eventListContainer: document.getElementById('eventListContainer'),
+        btnAddEvent: document.getElementById('btnAddEvent'),
+        btnGenerateMain: document.getElementById('btnGenerateMain'),
+        btnAutoGenerate: document.getElementById('btnAutoGenerate'),
+        btnClearGrid: document.getElementById('btnClearGrid'),
+        btnLoadSample: document.getElementById('btnLoadSample'),
+        btnExportImage: document.getElementById('btnExportImage'),
+        btnThemeToggle: document.getElementById('btnThemeToggle'),
+        timetableGridContainer: document.getElementById('timetableGridContainer'),
+        gridDateRangeLabel: document.getElementById('gridDateRangeLabel'),
+        placedStatsBadge: document.getElementById('placedStatsBadge'),
+        toastContainer: document.getElementById('toastContainer'),
+        // Modal elements
+        editModalBackdrop: document.getElementById('editModalBackdrop'),
+        modalTitle: document.getElementById('modalTitle'),
+        editEventForm: document.getElementById('editEventForm'),
+        modalBlockId: document.getElementById('modalBlockId'),
+        modalEventName: document.getElementById('modalEventName'),
+        modalDaySelect: document.getElementById('modalDaySelect'),
+        modalStartTime: document.getElementById('modalStartTime'),
+        modalDuration: document.getElementById('modalDuration'),
+        modalPriority: document.getElementById('modalPriority'),
+        btnCloseModal: document.getElementById('btnCloseModal'),
+        btnModalCancel: document.getElementById('btnModalCancel'),
+        btnModalDelete: document.getElementById('btnModalDelete')
+      };
+
+      function setActiveStep(step) {
+        state.currentStep = step === 2 ? 2 : 1;
+        const isStep1 = state.currentStep === 1;
+
+        if (dom.step1Card && dom.step2Card) {
+          dom.step1Card.classList.toggle('hidden', !isStep1);
+          dom.step2Card.classList.toggle('hidden', isStep1);
+          dom.step2Card.classList.toggle('flex', !isStep1);
+        }
+
+        if (dom.tabStep1 && dom.tabStep2) {
+          if (isStep1) {
+            dom.tabStep1.className = 'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 bg-indigo-600 text-white shadow-sm transition';
+            dom.tabStep2.className = 'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition';
+          } else {
+            dom.tabStep1.className = 'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition';
+            dom.tabStep2.className = 'py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 bg-indigo-600 text-white shadow-sm transition';
+          }
+        }
+      }
+
+      function recalculateEndTimeFromRows() {
+        const startMin = timeStrToMinutes(state.startTime) ?? 480;
+        const maxRowsAllowed = Math.max(1, Math.floor((1440 - startMin) / state.slotInterval));
+        if (state.numRows > maxRowsAllowed) {
+          state.numRows = maxRowsAllowed;
+          if (dom.inputNumRows) dom.inputNumRows.value = state.numRows;
+        }
+        const endMin = Math.min(1440, startMin + state.numRows * state.slotInterval);
+        const endH = Math.floor(endMin / 60);
+        const endM = endMin % 60;
+        state.endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+        if (dom.gridMatrixBadge) {
+          dom.gridMatrixBadge.textContent = `${state.numDays} Col${state.numDays === 1 ? '' : 's'} × ${state.numRows} Row${state.numRows === 1 ? '' : 's'}`;
+        }
+        if (dom.calculatedEndTimeLabel) {
+          const displayEnd = endMin === 1440 ? '12:00 AM (Midnight)' : minutesToDisplay12h(endMin);
+          dom.calculatedEndTimeLabel.textContent = `${minutesToDisplay12h(startMin)} – ${displayEnd}`;
+        }
+      }
+
+      function createDefaultEventTemplate(index, overrides = {}) {
+        const allDays = Array.from({ length: state.numDays }, (_, i) => i);
+        return {
+          id: generateUID('evt'),
+          name: overrides.name !== undefined ? overrides.name : `Event ${index + 1}`,
+          selectedDays: overrides.selectedDays !== undefined ? overrides.selectedDays : allDays.slice(0, Math.min(5, state.numDays)),
+          priority: overrides.priority !== undefined ? overrides.priority : 3,
+          duration: overrides.duration !== undefined ? overrides.duration : 60,
+          preferredTime: overrides.preferredTime !== undefined ? overrides.preferredTime : ''
+        };
+      }
+
+      function syncTemplatesWithDayCount() {
+        state.eventTemplates.forEach(tpl => {
+          tpl.selectedDays = tpl.selectedDays.filter(d => d < state.numDays);
+        });
+        state.placedBlocks = state.placedBlocks.filter(b => b.dayIndex < state.numDays);
+      }
+
+      function renderEventInputList() {
+        const days = getGridDays();
+        dom.eventListContainer.innerHTML = '';
+        dom.inputEventCount.value = state.eventTemplates.length;
+        if (dom.tabEventCountBadge) {
+          dom.tabEventCountBadge.textContent = state.eventTemplates.length;
+        }
+
+        if (state.eventTemplates.length === 0) {
+          dom.eventListContainer.innerHTML = `
+            <div class="text-center py-8 px-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 text-xs">
+              No events yet. Click <strong>"+ Add Event"</strong> or <strong>"Sample Data"</strong> to start!
+            </div>
+          `;
+          return;
+        }
+
+        state.eventTemplates.forEach((tpl, idx) => {
+          const prio = PRIORITY_LEVELS[tpl.priority] || PRIORITY_LEVELS[3];
+          const card = document.createElement('div');
+          card.className = 'p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex flex-col gap-3 transition hover:border-slate-300 dark:hover:border-slate-700';
+
+          // Day pill buttons HTML
+          const dayPillsHTML = days.map(d => {
+            const isSelected = tpl.selectedDays.includes(d.index);
+            return `
+              <button type="button"
+                data-action="toggle-day"
+                data-id="${tpl.id}"
+                data-day="${d.index}"
+                title="${d.fullLabel}"
+                class="px-2 py-1 rounded-lg text-[11px] font-semibold transition ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-400'
+                }">
+                ${d.dayName}${state.numDays > 7 ? ` ${d.dayNum}` : ''}
+              </button>
+            `;
+          }).join('');
+
+          const allSelected = tpl.selectedDays.length === days.length && days.length > 0;
+
+          card.innerHTML = `
+            <!-- Top Row: Priority Color Bar + Event Name + Delete -->
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs" style="background-color: ${prio.bgHex};" title="Priority: ${prio.label}"></span>
+              <input type="text"
+                data-action="update-name"
+                data-id="${tpl.id}"
+                value="${escapeHTML(tpl.name)}"
+                placeholder="Event ${idx + 1} Name..."
+                class="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none" />
+              <button type="button"
+                data-action="delete-event"
+                data-id="${tpl.id}"
+                title="Remove Event"
+                class="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Days Selection Row -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Days Selection</span>
+                <button type="button"
+                  data-action="toggle-all-days"
+                  data-id="${tpl.id}"
+                  class="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                  ${allSelected ? 'Clear All' : 'Select All'}
+                </button>
+              </div>
+              <div class="flex flex-wrap gap-1">
+                ${dayPillsHTML}
+              </div>
+            </div>
+
+            <!-- Bottom Grid: Priority, Duration, Preferable Timing -->
+            <!-- Bottom Grid: Priority, Custom Duration (mins), Preferable Timing -->
+            <div class="grid grid-cols-3 gap-2">
+              <!-- Priority Level -->
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Priority</label>
+                <select data-action="update-priority" data-id="${tpl.id}"
+                  class="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="1" ${tpl.priority === 1 ? 'selected' : ''}>🔴 Ext. High</option>
+                  <option value="2" ${tpl.priority === 2 ? 'selected' : ''}>🟠 High</option>
+                  <option value="3" ${tpl.priority === 3 ? 'selected' : ''}>🟡 Medium</option>
+                  <option value="4" ${tpl.priority === 4 ? 'selected' : ''}>🔵 Low</option>
+                  <option value="5" ${tpl.priority === 5 ? 'selected' : ''}>🟢 Ext. Low</option>
+                </select>
+              </div>
+
+              <!-- User-Entered Duration (in minutes) -->
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Duration (mins)</label>
+                <input type="number"
+                  min="5"
+                  max="720"
+                  step="5"
+                  data-action="update-duration"
+                  data-id="${tpl.id}"
+                  value="${escapeHTML(tpl.duration)}"
+                  placeholder="Mins"
+                  class="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+
+              <!-- Preferable Timing (Optional) -->
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1" title="Leave empty for automatic placement">Pref. Time (Opt)</label>
+                <input type="time"
+                  data-action="update-time"
+                  data-id="${tpl.id}"
+                  min="${state.startTime}"
+                  max="${state.endTime}"
+                  value="${tpl.preferredTime}"
+                  class="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+          `;
+
+          dom.eventListContainer.appendChild(card);
+        });
+      }
+
+      // Event delegation for Step 2 list
+      dom.eventListContainer.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const action = btn.dataset.action;
+        const id = btn.dataset.id;
+        const tpl = state.eventTemplates.find(t => t.id === id);
+        if (!tpl) return;
+
+        if (action === 'delete-event') {
+          state.eventTemplates = state.eventTemplates.filter(t => t.id !== id);
+          renderEventInputList();
+        } else if (action === 'toggle-day') {
+          const dayIdx = Number(btn.dataset.day);
+          if (tpl.selectedDays.includes(dayIdx)) {
+            tpl.selectedDays = tpl.selectedDays.filter(d => d !== dayIdx);
+          } else {
+            tpl.selectedDays.push(dayIdx);
+            tpl.selectedDays.sort((a, b) => a - b);
+          }
+          renderEventInputList();
+        } else if (action === 'toggle-all-days') {
+          if (tpl.selectedDays.length === state.numDays) {
+            tpl.selectedDays = [];
+          } else {
+            tpl.selectedDays = Array.from({ length: state.numDays }, (_, i) => i);
+          }
+          renderEventInputList();
+        }
+      });
+
+      dom.eventListContainer.addEventListener('input', (e) => {
+        const el = e.target;
+        const action = el.dataset.action;
+        const id = el.dataset.id;
+        const tpl = state.eventTemplates.find(t => t.id === id);
+        if (!tpl) return;
+
+        if (action === 'update-name') {
+          tpl.name = el.value;
+        } else if (action === 'update-time') {
+          tpl.preferredTime = el.value;
+        } else if (action === 'update-duration') {
+          const parsedDur = parseInt(el.value, 10);
+          if (!isNaN(parsedDur) && parsedDur >= 5) {
+            tpl.duration = Math.min(720, parsedDur);
+          }
+        }
+      });
+
+      dom.eventListContainer.addEventListener('change', (e) => {
+        const el = e.target;
+        const action = el.dataset.action;
+        const id = el.dataset.id;
+        const tpl = state.eventTemplates.find(t => t.id === id);
+        if (!tpl) return;
+
+        if (action === 'update-priority') {
+          tpl.priority = Number(el.value);
+          renderEventInputList();
+        } else if (action === 'update-duration') {
+          let parsedDur = parseInt(el.value, 10);
+          if (isNaN(parsedDur) || parsedDur < 5) parsedDur = 5;
+          if (parsedDur > 720) parsedDur = 720;
+          tpl.duration = parsedDur;
+          el.value = parsedDur;
+        }
+      });
+
+      // =========================================================================
+      // 7. SMART AUTO-PLACEMENT ALGORITHM
+      // =========================================================================
+      function autoGenerateTimetable() {
+        const gridStartMin = timeStrToMinutes(state.startTime);
+        const gridEndMin = timeStrToMinutes(state.endTime);
+
+        if (gridStartMin === null || gridEndMin === null || gridEndMin <= gridStartMin) {
+          showToast('Please ensure Daily End Time is after Daily Start Time.', 'error');
+          return;
+        }
+
+        if (state.eventTemplates.length === 0) {
+          showToast('Add at least one event before generating the timetable.', 'warning');
+          return;
+        }
+
+        // Clear current blocks and build fresh schedule
+        const newPlacedBlocks = [];
+        let unplacedCount = 0;
+        let fallbackCount = 0;
+
+        // Sort events:
+        // 1. Priority ascending (1 = Extremely High -> 5 = Extremely Low)
+        // 2. Events with a Preferable Timing come first within the same priority
+        // 3. Longer duration events slightly favored for tighter packing
+        const sortedTemplates = [...state.eventTemplates].sort((a, b) => {
+          if (a.priority !== b.priority) return a.priority - b.priority;
+          const aHasPref = Boolean(a.preferredTime);
+          const bHasPref = Boolean(b.preferredTime);
+          if (aHasPref !== bHasPref) return aHasPref ? -1 : 1;
+          return b.duration - a.duration;
+        });
+
+        // Helper to check if a time range [start, start + dur] is completely free on dayIdx
+        function isRangeAvailable(dayIdx, startMin, durationMin) {
+          const endMin = startMin + durationMin;
+          if (startMin < gridStartMin || endMin > gridEndMin) return false;
+          return !newPlacedBlocks.some(b =>
+            b.dayIndex === dayIdx &&
+            startMin < (b.startMinutes + b.duration) &&
+            endMin > b.startMinutes
+          );
+        }
+
+        // Helper to find earliest contiguous free slot on a day
+        function findEarliestFreeSlot(dayIdx, durationMin) {
+          const step = state.slotInterval;
+          for (let t = gridStartMin; t + durationMin <= gridEndMin; t += step) {
+            if (isRangeAvailable(dayIdx, t, durationMin)) {
+              return t;
+            }
+          }
+          // Fallback: check 15-minute increments if standard slot step missed a gap
+          for (let t = gridStartMin; t + durationMin <= gridEndMin; t += 15) {
+            if (isRangeAvailable(dayIdx, t, durationMin)) {
+              return t;
+            }
+          }
+          return null;
+        }
+
+        // Place each event across its selected days
+        sortedTemplates.forEach((tpl, idx) => {
+          const eventTitle = tpl.name.trim() || `Event ${idx + 1}`;
+          const prefMin = timeStrToMinutes(tpl.preferredTime);
+
+          tpl.selectedDays.forEach(dayIdx => {
+            if (dayIdx < 0 || dayIdx >= state.numDays) return;
+
+            let chosenStart = null;
+
+            // 1. Try preferable timing if provided
+            if (prefMin !== null) {
+              if (isRangeAvailable(dayIdx, prefMin, tpl.duration)) {
+                chosenStart = prefMin;
+              } else {
+                // Preferred slot occupied/out of bounds -> find nearest/earliest free slot
+                chosenStart = findEarliestFreeSlot(dayIdx, tpl.duration);
+                if (chosenStart !== null) fallbackCount++;
+              }
+            } else {
+              // 2. No preferable time -> auto-place in earliest open slot
+              chosenStart = findEarliestFreeSlot(dayIdx, tpl.duration);
+            }
+
+            if (chosenStart !== null) {
+              newPlacedBlocks.push({
+                id: generateUID('blk'),
+                templateId: tpl.id,
+                name: eventTitle,
+                dayIndex: dayIdx,
+                startMinutes: chosenStart,
+                duration: tpl.duration,
+                priority: tpl.priority
+              });
+            } else {
+              unplacedCount++;
+            }
+          });
+        });
+
+        state.placedBlocks = newPlacedBlocks;
+        renderTimetableGrid();
+
+        // User-friendly status notification
+        if (unplacedCount > 0) {
+          showToast(`Timetable generated! ${unplacedCount} occurrence(s) could not fit due to full day capacity.`, 'warning');
+        } else if (fallbackCount > 0) {
+          showToast(`Timetable generated! ${fallbackCount} event(s) were auto-shifted to avoid time conflicts.`, 'info');
+        } else {
+          showToast(`Timetable generated! All ${newPlacedBlocks.length} event blocks placed cleanly.`, 'success');
+        }
+      }
+
+      // =========================================================================
+      // 8. TIMETABLE GRID RENDERING & DRAG-AND-DROP
+      // =========================================================================
+      function renderTimetableGrid() {
+        const days = getGridDays();
+        const gridStartMin = timeStrToMinutes(state.startTime) ?? 480;
+        const gridEndMin = Math.max(gridStartMin + state.slotInterval, timeStrToMinutes(state.endTime) ?? 1200);
+        const step = state.slotInterval;
+
+        // Update header date range pill
+        if (days.length > 0) {
+          const first = days[0];
+          const last = days[days.length - 1];
+          const year = last.dateObj.getFullYear();
+          dom.gridDateRangeLabel.textContent = days.length === 1
+            ? `${first.fullLabel}, ${year}`
+            : `${first.monthName} ${first.dayNum} – ${last.monthName} ${last.dayNum}, ${year}`;
+        }
+
+        // Update stats pill
+        dom.placedStatsBadge.textContent = `${state.placedBlocks.length} Event${state.placedBlocks.length === 1 ? '' : 's'} Placed`;
+
+        // Build time slots list
+        const timeSlots = [];
+        for (let t = gridStartMin; t < gridEndMin; t += step) {
+          timeSlots.push(t);
+        }
+
+        const totalRows = timeSlots.length;
+        const totalGridHeight = totalRows * SLOT_HEIGHT_PX;
+        const numCols = days.length;
+
+        // Grid CSS template: 84px time column + N equal day columns
+        const gridTemplateCols = `84px repeat(${numCols}, minmax(120px, 1fr))`;
+
+        let html = `
+          <!-- Sticky Day Column Headers -->
+          <div class="grid border-b border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-800/90 sticky top-0 z-20" style="grid-template-columns: ${gridTemplateCols};">
+            <div class="p-3 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-center border-r border-slate-200 dark:border-slate-800">
+              Time
+            </div>
+            ${days.map(d => `
+              <div class="p-2.5 text-center border-r last:border-r-0 border-slate-200 dark:border-slate-800">
+                <div class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">${d.dayName}</div>
+                <div class="text-sm font-bold text-slate-800 dark:text-slate-100">${d.monthName} ${d.dayNum}</div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Grid Body: Left Time Labels + Day Columns -->
+          <div class="grid relative" style="grid-template-columns: ${gridTemplateCols}; height: ${totalGridHeight}px;">
+            
+            <!-- Time Axis Column -->
+            <div class="border-r border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60">
+              ${timeSlots.map(t => `
+                <div style="height: ${SLOT_HEIGHT_PX}px;" class="px-2 flex items-start justify-end pt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200/70 dark:border-slate-800/70">
+                  ${minutesToDisplay12h(t)}
+                </div>
+              `).join('')}
+            </div>
+
+            <!-- Day Columns -->
+            ${days.map(d => {
+              const dayBlocks = state.placedBlocks.filter(b => b.dayIndex === d.index);
+              return `
+                <div class="relative border-r last:border-r-0 border-slate-200 dark:border-slate-800" data-day-col="${d.index}">
+                  <!-- Interactive Background Drop Cells -->
+                  ${timeSlots.map(t => `
+                    <div
+                      data-drop-cell="true"
+                      data-day="${d.index}"
+                      data-time="${t}"
+                      style="height: ${SLOT_HEIGHT_PX}px;"
+                      title="Click to add event on ${d.fullLabel} at ${minutesToDisplay12h(t)}"
+                      class="border-b border-slate-200/70 dark:border-slate-800/70 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 cursor-pointer transition-colors">
+                    </div>
+                  `).join('')}
+
+                  <!-- Placed Event Blocks Layer -->
+                  ${dayBlocks.map(block => renderEventBlockHTML(block, gridStartMin, gridEndMin, step)).join('')}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        dom.timetableGridContainer.innerHTML = html;
+        attachGridInteractions();
+      }
+
+      function renderEventBlockHTML(block, gridStartMin, gridEndMin, step) {
+        // Clamp visual rendering to visible grid window
+        const visibleStart = Math.max(block.startMinutes, gridStartMin);
+        const visibleEnd = Math.min(block.startMinutes + block.duration, gridEndMin);
+        if (visibleEnd <= visibleStart) return '';
+
+        const offsetMinutes = visibleStart - gridStartMin;
+        const visibleDuration = visibleEnd - visibleStart;
+
+        const topPx = (offsetMinutes / step) * SLOT_HEIGHT_PX + 2;
+        const heightPx = Math.max(24, (visibleDuration / step) * SLOT_HEIGHT_PX - 4);
+
+        const prio = PRIORITY_LEVELS[block.priority] || PRIORITY_LEVELS[3];
+        const timeRangeLabel = `${minutesToDisplay12h(block.startMinutes)} – ${minutesToDisplay12h(block.startMinutes + block.duration)}`;
+        const isCompact = heightPx < 46;
+
+        return `
+          <div
+            draggable="true"
+            data-block-id="${block.id}"
+            style="top: ${topPx}px; height: ${heightPx}px; background-color: ${prio.bgHex}; border-left: 4px solid ${prio.borderHex};"
+            class="event-block absolute left-1 right-1 rounded-xl px-2.5 py-1.5 shadow-sm cursor-grab active:cursor-grabbing overflow-hidden flex flex-col justify-between z-10 select-none ${prio.textClass}"
+            title="${escapeHTML(block.name)} (${timeRangeLabel}) • Priority: ${prio.label} • Drag to move or click to edit">
+            <div class="flex items-start justify-between gap-1 leading-tight">
+              <span class="font-bold text-xs truncate">${escapeHTML(block.name)}</span>
+              ${!isCompact ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${prio.badgeBg}">${prio.short}</span>` : ''}
+            </div>
+            ${!isCompact ? `
+              <div class="text-[10px] font-medium opacity-90 truncate ${prio.subTextClass}">
+                ${timeRangeLabel}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      // =========================================================================
+      // 9. DRAG-AND-DROP & CLICK-TO-EDIT INTERACTIONS
+      // =========================================================================
+      function attachGridInteractions() {
+        const blocks = dom.timetableGridContainer.querySelectorAll('[data-block-id]');
+        const cells = dom.timetableGridContainer.querySelectorAll('[data-drop-cell]');
+
+        // 1. Event Block Drag & Click
+        blocks.forEach(el => {
+          el.addEventListener('dragstart', (e) => {
+            state.draggedBlockId = el.dataset.blockId;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', el.dataset.blockId);
+            setTimeout(() => el.classList.add('event-card-dragging'), 0);
+          });
+
+          el.addEventListener('dragend', () => {
+            state.draggedBlockId = null;
+            el.classList.remove('event-card-dragging');
+            clearDropHighlights();
+          });
+
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openEditModal(el.dataset.blockId);
+          });
+        });
+
+        // 2. Drop Cell Listeners + Click to Create New Block
+        cells.forEach(cell => {
+          cell.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (!state.draggedBlockId) return;
+            const targetDay = Number(cell.dataset.day);
+            const targetTime = Number(cell.dataset.time);
+            const draggedBlock = state.placedBlocks.find(b => b.id === state.draggedBlockId);
+            if (!draggedBlock) return;
+
+            clearDropHighlights();
+            const valid = canMoveBlockTo(draggedBlock, targetDay, targetTime);
+            cell.classList.add(valid ? 'drop-target-active' : 'drop-target-invalid');
+          });
+
+          cell.addEventListener('dragleave', () => {
+            cell.classList.remove('drop-target-active', 'drop-target-invalid');
+          });
+
+          cell.addEventListener('drop', (e) => {
+            e.preventDefault();
+            clearDropHighlights();
+            const blockId = e.dataTransfer.getData('text/plain') || state.draggedBlockId;
+            const targetDay = Number(cell.dataset.day);
+            const targetTime = Number(cell.dataset.time);
+            handleBlockDrop(blockId, targetDay, targetTime);
+          });
+
+          // Click empty slot to quickly create an event there
+          cell.addEventListener('click', () => {
+            const dayIdx = Number(cell.dataset.day);
+            const startMin = Number(cell.dataset.time);
+            openCreateModalAtSlot(dayIdx, startMin);
+          });
+        });
+      }
+
+      function clearDropHighlights() {
+        dom.timetableGridContainer.querySelectorAll('.drop-target-active, .drop-target-invalid').forEach(el => {
+          el.classList.remove('drop-target-active', 'drop-target-invalid');
+        });
+      }
+
+      function canMoveBlockTo(block, targetDay, targetStartMin) {
+        const gridStartMin = timeStrToMinutes(state.startTime);
+        const gridEndMin = timeStrToMinutes(state.endTime);
+        const targetEndMin = targetStartMin + block.duration;
+
+        if (targetStartMin < gridStartMin || targetEndMin > gridEndMin) return false;
+
+        // Check overlap against all OTHER blocks on targetDay
+        return !state.placedBlocks.some(other =>
+          other.id !== block.id &&
+          other.dayIndex === targetDay &&
+          targetStartMin < (other.startMinutes + other.duration) &&
+          targetEndMin > other.startMinutes
+        );
+      }
+
+      function handleBlockDrop(blockId, targetDay, targetStartMin) {
+        const block = state.placedBlocks.find(b => b.id === blockId);
+        if (!block) return;
+
+        if (block.dayIndex === targetDay && block.startMinutes === targetStartMin) return;
+
+        if (canMoveBlockTo(block, targetDay, targetStartMin)) {
+          block.dayIndex = targetDay;
+          block.startMinutes = targetStartMin;
+          renderTimetableGrid();
+          showToast(`Moved "${block.name}" to ${minutesToDisplay12h(targetStartMin)}.`, 'success');
+        } else {
+          showToast('Cannot drop there — time slot overlaps another event or exceeds grid hours.', 'warning');
+        }
+      }
+
+      // =========================================================================
+      // 10. MODAL EDIT / CREATE WORKFLOW
+      // =========================================================================
+      function populateModalSelects() {
+        const days = getGridDays();
+        dom.modalDaySelect.innerHTML = days.map(d =>
+          `<option value="${d.index}">${d.fullLabel}</option>`
+        ).join('');
+
+        const gridStartMin = timeStrToMinutes(state.startTime) ?? 480;
+        const gridEndMin = timeStrToMinutes(state.endTime) ?? 1200;
+        const options = [];
+        for (let t = gridStartMin; t < gridEndMin; t += 15) {
+          options.push(`<option value="${t}">${minutesToDisplay12h(t)}</option>`);
+        }
+        dom.modalStartTime.innerHTML = options.join('');
+      }
+
+      function openEditModal(blockId) {
+        const block = state.placedBlocks.find(b => b.id === blockId);
+        if (!block) return;
+
+        populateModalSelects();
+        dom.modalTitle.textContent = 'Edit Scheduled Event';
+        dom.modalBlockId.value = block.id;
+        dom.modalEventName.value = block.name;
+        dom.modalDaySelect.value = String(block.dayIndex);
+        dom.modalStartTime.value = String(block.startMinutes);
+        dom.modalDuration.value = String(block.duration);
+        dom.modalPriority.value = String(block.priority);
+        dom.btnModalDelete.classList.remove('hidden');
+
+        dom.editModalBackdrop.classList.remove('hidden');
+        dom.editModalBackdrop.classList.add('flex');
+      }
+
+      function openCreateModalAtSlot(dayIdx, startMin) {
+        populateModalSelects();
+        dom.modalTitle.textContent = 'Add Event to Slot';
+        dom.modalBlockId.value = ''; // Empty indicates new block creation
+        dom.modalEventName.value = '';
+        dom.modalDaySelect.value = String(dayIdx);
+        dom.modalStartTime.value = String(startMin);
+        dom.modalDuration.value = String(state.slotInterval);
+        dom.modalPriority.value = '3';
+        dom.btnModalDelete.classList.add('hidden');
+
+        dom.editModalBackdrop.classList.remove('hidden');
+        dom.editModalBackdrop.classList.add('flex');
+        setTimeout(() => dom.modalEventName.focus(), 50);
+      }
+
+      function closeEditModal() {
+        dom.editModalBackdrop.classList.add('hidden');
+        dom.editModalBackdrop.classList.remove('flex');
+      }
+
+      dom.editEventForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const blockId = dom.modalBlockId.value;
+        const name = dom.modalEventName.value.trim() || 'Scheduled Event';
+        const dayIndex = Number(dom.modalDaySelect.value);
+        const startMinutes = Number(dom.modalStartTime.value);
+        let duration = parseInt(dom.modalDuration.value, 10);
+        if (isNaN(duration) || duration < 5) duration = 5;
+        if (duration > 720) duration = 720;
+        const priority = Number(dom.modalPriority.value);
+
+        const candidate = { id: blockId || generateUID('blk'), name, dayIndex, startMinutes, duration, priority };
+
+        if (!canMoveBlockTo(candidate, dayIndex, startMinutes)) {
+          showToast('Time conflict! That slot overlaps an existing event or goes past end time.', 'error');
+          return;
+        }
+
+        if (blockId) {
+          const existing = state.placedBlocks.find(b => b.id === blockId);
+          if (existing) {
+            Object.assign(existing, { name, dayIndex, startMinutes, duration, priority });
+          }
+          showToast('Event updated.', 'success');
+        } else {
+          state.placedBlocks.push(candidate);
+          showToast(`Added "${name}" to timetable.`, 'success');
+        }
+
+        closeEditModal();
+        renderTimetableGrid();
+      });
+
+      dom.btnModalDelete.addEventListener('click', () => {
+        const blockId = dom.modalBlockId.value;
+        if (!blockId) return;
+        state.placedBlocks = state.placedBlocks.filter(b => b.id !== blockId);
+        closeEditModal();
+        renderTimetableGrid();
+        showToast('Event block removed from grid.', 'info');
+      });
+
+      dom.btnCloseModal.addEventListener('click', closeEditModal);
+      dom.btnModalCancel.addEventListener('click', closeEditModal);
+      dom.editModalBackdrop.addEventListener('click', (e) => {
+        if (e.target === dom.editModalBackdrop) closeEditModal();
+      });
+
+      // =========================================================================
+      // 11. EXPORT TIMETABLE AS HIGH-RES PNG IMAGE (Native Canvas Renderer)
+      // =========================================================================
+      function exportTimetableAsPNG() {
+        try {
+          const days = getGridDays();
+          const gridStartMin = timeStrToMinutes(state.startTime) ?? 480;
+          const gridEndMin = Math.max(gridStartMin + state.slotInterval, timeStrToMinutes(state.endTime) ?? 1200);
+          const step = state.slotInterval;
+          const timeSlots = [];
+          for (let t = gridStartMin; t < gridEndMin; t += step) {
+            timeSlots.push(t);
+          }
+
+          const isDark = document.documentElement.classList.contains('dark');
+          const dpr = 2; // Crisp Retina / High-DPI output
+          const padding = 32;
+          const headerHeight = 96;
+          const colHeaderHeight = 56;
+          const timeColWidth = 96;
+          const dayColWidth = Math.max(145, Math.floor(960 / Math.max(1, days.length)));
+          const rowHeight = 46;
+
+          const totalWidth = padding * 2 + timeColWidth + days.length * dayColWidth;
+          const totalHeight = padding * 2 + headerHeight + colHeaderHeight + timeSlots.length * rowHeight;
+
+          const canvas = document.createElement('canvas');
+          canvas.width = totalWidth * dpr;
+          canvas.height = totalHeight * dpr;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(dpr, dpr);
+
+          // Colors based on active theme
+          const bgColor = isDark ? '#0f172a' : '#ffffff';
+          const headerBg = isDark ? '#1e293b' : '#f8fafc';
+          const borderColor = isDark ? '#334155' : '#e2e8f0';
+          const textPrimary = isDark ? '#f8fafc' : '#0f172a';
+          const textSecondary = isDark ? '#94a3b8' : '#64748b';
+
+          // Background fill
+          ctx.fillStyle = bgColor;
+          ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+          // Title & Date Range
+          ctx.fillStyle = textPrimary;
+          ctx.font = '800 24px Inter, system-ui, sans-serif';
+          ctx.fillText('Scheduler Timetable', padding, padding + 28);
+
+          const first = days[0];
+          const last = days[days.length - 1];
+          const rangeText = days.length === 1
+            ? `${first.fullLabel}, ${first.dateObj.getFullYear()}`
+            : `${first.monthName} ${first.dayNum} – ${last.monthName} ${last.dayNum}, ${last.dateObj.getFullYear()}`;
+          ctx.fillStyle = '#4f46e5';
+          ctx.font = '600 13px Inter, system-ui, sans-serif';
+          ctx.fillText(rangeText, padding, padding + 50);
+
+          // Priority Legend on top right
+          const legendItems = [
+            { label: 'Ext. High', color: '#EF4444' },
+            { label: 'High', color: '#F97316' },
+            { label: 'Medium', color: '#EAB308' },
+            { label: 'Low', color: '#38BDF8' },
+            { label: 'Ext. Low', color: '#22C55E' }
+          ];
+          let legendX = totalWidth - padding;
+          ctx.font = '600 11px Inter, system-ui, sans-serif';
+          for (let i = legendItems.length - 1; i >= 0; i--) {
+            const item = legendItems[i];
+            const textW = ctx.measureText(item.label).width;
+            legendX -= textW;
+            ctx.fillStyle = textSecondary;
+            ctx.fillText(item.label, legendX, padding + 32);
+            legendX -= 16;
+            ctx.fillStyle = item.color;
+            ctx.beginPath();
+            ctx.arc(legendX + 5, padding + 28, 5, 0, Math.PI * 2);
+            ctx.fill();
+            legendX -= 16;
+          }
+
+          const gridTop = padding + headerHeight;
+          const gridLeft = padding;
+          const gridWidth = timeColWidth + days.length * dayColWidth;
+          const gridBodyTop = gridTop + colHeaderHeight;
+          const gridBodyHeight = timeSlots.length * rowHeight;
+
+          // Column Header Background
+          ctx.fillStyle = headerBg;
+          ctx.fillRect(gridLeft, gridTop, gridWidth, colHeaderHeight);
+
+          // Outer Border
+          ctx.strokeStyle = borderColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(gridLeft, gridTop, gridWidth, colHeaderHeight + gridBodyHeight);
+
+          // Time Column Header
+          ctx.fillStyle = textSecondary;
+          ctx.font = '700 11px Inter, system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('TIME', gridLeft + timeColWidth / 2, gridTop + 32);
+
+          // Day Column Headers & Vertical Lines
+          days.forEach((d, idx) => {
+            const colX = gridLeft + timeColWidth + idx * dayColWidth;
+            ctx.beginPath();
+            ctx.moveTo(colX, gridTop);
+            ctx.lineTo(colX, gridBodyTop + gridBodyHeight);
+            ctx.stroke();
+
+            ctx.fillStyle = '#4f46e5';
+            ctx.font = '800 11px Inter, system-ui, sans-serif';
+            ctx.fillText(d.dayName.toUpperCase(), colX + dayColWidth / 2, gridTop + 23);
+
+            ctx.fillStyle = textPrimary;
+            ctx.font = '700 13px Inter, system-ui, sans-serif';
+            ctx.fillText(`${d.monthName} ${d.dayNum}`, colX + dayColWidth / 2, gridTop + 42);
+          });
+
+          // Horizontal Time Rows
+          ctx.textAlign = 'right';
+          timeSlots.forEach((t, rIdx) => {
+            const rowY = gridBodyTop + rIdx * rowHeight;
+            ctx.beginPath();
+            ctx.moveTo(gridLeft, rowY);
+            ctx.lineTo(gridLeft + gridWidth, rowY);
+            ctx.stroke();
+
+            ctx.fillStyle = textSecondary;
+            ctx.font = '600 11px Inter, system-ui, sans-serif';
+            ctx.fillText(minutesToDisplay12h(t), gridLeft + timeColWidth - 10, rowY + 16);
+          });
+
+          // Draw Scheduled Event Blocks
+          ctx.textAlign = 'left';
+          state.placedBlocks.forEach(block => {
+            const visibleStart = Math.max(block.startMinutes, gridStartMin);
+            const visibleEnd = Math.min(block.startMinutes + block.duration, gridEndMin);
+            if (visibleEnd <= visibleStart) return;
+
+            const prio = PRIORITY_LEVELS[block.priority] || PRIORITY_LEVELS[3];
+            const bx = gridLeft + timeColWidth + block.dayIndex * dayColWidth + 4;
+            const by = gridBodyTop + ((visibleStart - gridStartMin) / step) * rowHeight + 2;
+            const bw = dayColWidth - 8;
+            const bh = Math.max(22, ((visibleEnd - visibleStart) / step) * rowHeight - 4);
+
+            // Rounded rect
+            const radius = 8;
+            ctx.fillStyle = prio.bgHex;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(bx, by, bw, bh, radius);
+            } else {
+              ctx.rect(bx, by, bw, bh);
+            }
+            ctx.fill();
+
+            // Text inside event block
+            const useDarkText = (block.priority === 3 || block.priority === 4);
+            ctx.fillStyle = useDarkText ? '#0f172a' : '#ffffff';
+            ctx.font = '700 12px Inter, system-ui, sans-serif';
+
+            // Clip text to block bounds
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(bx + 6, by + 2, bw - 12, bh - 4);
+            ctx.clip();
+
+            ctx.fillText(block.name, bx + 8, by + 17);
+            if (bh >= 38) {
+              ctx.font = '500 10px Inter, system-ui, sans-serif';
+              const timeStr = `${minutesToDisplay12h(block.startMinutes)} - ${minutesToDisplay12h(block.startMinutes + block.duration)}`;
+              ctx.fillText(timeStr, bx + 8, by + 32);
+            }
+            ctx.restore();
+          });
+
+          // Trigger PNG Download
+          const link = document.createElement('a');
+          link.download = `Scheduler-Timetable-${state.startDate}.png`;
+          link.href = canvas.toDataURL('image/png');
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          showToast('Timetable exported as PNG image!', 'success');
+        } catch (err) {
+          console.error('Export failed:', err);
+          showToast('Could not export PNG image.', 'error');
+        }
+      }
+
+      // =========================================================================
+      // 12. SAMPLE DATA & CONTROLS WIRING
+      // =========================================================================
+      function loadSampleData() {
+        state.numDays = 7;
+        dom.inputNumDays.value = 7;
+        updatePresetDaysUI();
+        state.startTime = '08:00';
+        dom.inputStartTime.value = '08:00';
+        state.slotInterval = 60;
+        state.numRows = 12;
+        dom.inputNumRows.value = 12;
+        recalculateEndTimeFromRows();
+        updateIntervalButtonsUI();
+
+        state.eventTemplates = [
+          createDefaultEventTemplate(0, {
+            name: 'Morning Deep Work / Coding',
+            selectedDays: [0, 1, 2, 3, 4],
+            priority: 1, // Extremely High (Red)
+            duration: 120,
+            preferredTime: '09:00'
+          }),
+          createDefaultEventTemplate(1, {
+            name: 'Team Standup & Sync',
+            selectedDays: [0, 2, 4],
+            priority: 2, // High (Orange)
+            duration: 60,
+            preferredTime: '11:00'
+          }),
+          createDefaultEventTemplate(2, {
+            name: 'Client Strategy & Design Review',
+            selectedDays: [1, 3],
+            priority: 2, // High (Orange)
+            duration: 90,
+            preferredTime: ''
+          }),
+          createDefaultEventTemplate(3, {
+            name: 'Workout & Fitness',
+            selectedDays: [0, 2, 4, 5],
+            priority: 3, // Medium (Yellow)
+            duration: 60,
+            preferredTime: '17:00'
+          }),
+          createDefaultEventTemplate(4, {
+            name: 'Reading & Skill Learning',
+            selectedDays: [1, 3, 5, 6],
+            priority: 4, // Low (Light Blue)
+            duration: 60,
+            preferredTime: ''
+          }),
+          createDefaultEventTemplate(5, {
+            name: 'Weekly Meal Prep & Errands',
+            selectedDays: [6],
+            priority: 5, // Extremely Low (Green)
+            duration: 120,
+            preferredTime: '10:00'
+          })
+        ];
+
+        renderEventInputList();
+        autoGenerateTimetable();
+        setActiveStep(2);
+      }
+
+      function updatePresetDaysUI() {
+        document.querySelectorAll('.preset-days').forEach(btn => {
+          const val = Number(btn.dataset.days);
+          if (val === state.numDays) {
+            btn.className = 'preset-days py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow-xs transition';
+          } else {
+            btn.className = 'preset-days py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition';
+          }
+        });
+      }
+
+      function updateIntervalButtonsUI() {
+        document.querySelectorAll('.interval-btn').forEach(btn => {
+          const val = Number(btn.dataset.interval);
+          if (val === state.slotInterval) {
+            btn.className = 'interval-btn py-2 px-3 rounded-xl text-xs font-semibold border border-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 transition';
+          } else {
+            btn.className = 'interval-btn py-2 px-3 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition';
+          }
+        });
+      }
+
+      function applyGridSettingsAndProceed() {
+        if (!dom.inputStartDate.value) {
+          showToast('Please select a valid Start Date.', 'error');
+          return;
+        }
+
+        state.startDate = dom.inputStartDate.value;
+
+        let colsVal = parseInt(dom.inputNumDays.value, 10);
+        if (isNaN(colsVal) || colsVal < 1) colsVal = 1;
+        if (colsVal > 14) colsVal = 14;
+        state.numDays = colsVal;
+        dom.inputNumDays.value = colsVal;
+        updatePresetDaysUI();
+
+        let rowsVal = parseInt(dom.inputNumRows.value, 10);
+        if (isNaN(rowsVal) || rowsVal < 1) rowsVal = 1;
+        if (rowsVal > 48) rowsVal = 48;
+        state.numRows = rowsVal;
+        dom.inputNumRows.value = rowsVal;
+
+        state.startTime = dom.inputStartTime.value || '08:00';
+        recalculateEndTimeFromRows();
+
+        syncTemplatesWithDayCount();
+        renderTimetableGrid();
+        setActiveStep(2);
+        showToast(`Created ${state.numDays} Columns × ${state.numRows} Rows grid! Now configure your events.`, 'success');
+      }
+
+      function wireControls() {
+        // Stepper Tabs & Buttons
+        dom.tabStep1.addEventListener('click', () => setActiveStep(1));
+        dom.tabStep2.addEventListener('click', () => setActiveStep(2));
+        dom.btnBackToStep1.addEventListener('click', () => setActiveStep(1));
+        dom.btnApplyGridAndNext.addEventListener('click', applyGridSettingsAndProceed);
+
+        // Step 1 Inputs (Live update grid immediately on any change!)
+        dom.inputStartDate.addEventListener('input', (e) => {
+          if (e.target.value) {
+            state.startDate = e.target.value;
+            renderEventInputList();
+            renderTimetableGrid();
+          }
+        });
+
+        dom.inputNumDays.addEventListener('input', (e) => {
+          let val = parseInt(e.target.value, 10);
+          if (isNaN(val) || val < 1) return;
+          if (val > 14) {
+            val = 14;
+            e.target.value = 14;
+          }
+          state.numDays = val;
+          updatePresetDaysUI();
+          recalculateEndTimeFromRows();
+          syncTemplatesWithDayCount();
+          renderEventInputList();
+          renderTimetableGrid();
+        });
+
+        dom.inputNumRows.addEventListener('input', (e) => {
+          let val = parseInt(e.target.value, 10);
+          if (isNaN(val) || val < 1) return;
+          if (val > 48) {
+            val = 48;
+            e.target.value = 48;
+          }
+          state.numRows = val;
+          recalculateEndTimeFromRows();
+          renderTimetableGrid();
+        });
+
+        document.querySelectorAll('.preset-days').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const days = Number(btn.dataset.days);
+            state.numDays = days;
+            dom.inputNumDays.value = days;
+            updatePresetDaysUI();
+            recalculateEndTimeFromRows();
+            syncTemplatesWithDayCount();
+            renderEventInputList();
+            renderTimetableGrid();
+          });
+        });
+
+        dom.inputStartTime.addEventListener('input', (e) => {
+          if (e.target.value) {
+            state.startTime = e.target.value;
+            recalculateEndTimeFromRows();
+            renderTimetableGrid();
+          }
+        });
+
+        document.querySelectorAll('.interval-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.slotInterval = Number(btn.dataset.interval);
+            recalculateEndTimeFromRows();
+            updateIntervalButtonsUI();
+            renderTimetableGrid();
+          });
+        });
+
+        // Step 2 Event Controls
+        dom.btnAddEvent.addEventListener('click', () => {
+          const newEvt = createDefaultEventTemplate(state.eventTemplates.length);
+          state.eventTemplates.push(newEvt);
+          renderEventInputList();
+          dom.eventListContainer.scrollTop = dom.eventListContainer.scrollHeight;
+        });
+
+        dom.btnSetEventCount.addEventListener('click', () => {
+          let targetCount = parseInt(dom.inputEventCount.value, 10);
+          if (isNaN(targetCount) || targetCount < 1) targetCount = 1;
+          if (targetCount > 30) targetCount = 30;
+          dom.inputEventCount.value = targetCount;
+
+          while (state.eventTemplates.length < targetCount) {
+            state.eventTemplates.push(createDefaultEventTemplate(state.eventTemplates.length));
+          }
+          if (state.eventTemplates.length > targetCount) {
+            state.eventTemplates = state.eventTemplates.slice(0, targetCount);
+          }
+          renderEventInputList();
+        });
+
+        // Toolbar & Generate Actions
+        dom.btnGenerateMain.addEventListener('click', autoGenerateTimetable);
+        dom.btnAutoGenerate.addEventListener('click', autoGenerateTimetable);
+
+        dom.btnClearGrid.addEventListener('click', () => {
+          state.placedBlocks = [];
+          renderTimetableGrid();
+          showToast('Timetable grid cleared.', 'info');
+        });
+
+        dom.btnLoadSample.addEventListener('click', loadSampleData);
+        dom.btnExportImage.addEventListener('click', exportTimetableAsPNG);
+
+        // Dark / Light Theme Toggle
+        dom.btnThemeToggle.addEventListener('click', () => {
+          document.documentElement.classList.toggle('dark');
+        });
+      }
+
+      // =========================================================================
+      // 13. INITIALIZATION ON WINDOW LOAD
+      // =========================================================================
+      window.addEventListener('DOMContentLoaded', () => {
+        dom.inputStartDate.value = state.startDate;
+        dom.inputNumDays.value = state.numDays;
+        dom.inputNumRows.value = state.numRows;
+        dom.inputStartTime.value = state.startTime;
+        recalculateEndTimeFromRows();
+
+        // Initialize 4 ready-to-fill event templates for Step 2, while starting the user explicitly on Step 1 (Grid Setup)
+        state.eventTemplates = [
+          createDefaultEventTemplate(0, { name: 'Event 1', priority: 1, duration: 60 }),
+          createDefaultEventTemplate(1, { name: 'Event 2', priority: 2, duration: 60 }),
+          createDefaultEventTemplate(2, { name: 'Event 3', priority: 3, duration: 60 }),
+          createDefaultEventTemplate(3, { name: 'Event 4', priority: 4, duration: 60 })
+        ];
+
+        wireControls();
+        updatePresetDaysUI();
+        updateIntervalButtonsUI();
+        renderEventInputList();
+        renderTimetableGrid();
+        setActiveStep(1);
+      });
+    })();
+  </script>
+</body>
+</html>
